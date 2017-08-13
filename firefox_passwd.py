@@ -2,6 +2,7 @@
 "Recovers your Firefox or Thunderbird passwords"
 
 import base64
+import json
 from collections import namedtuple
 from ConfigParser import RawConfigParser, NoOptionError
 from ctypes import (Structure, CDLL, byref, cast, string_at, c_void_p, 
@@ -10,10 +11,6 @@ from getpass import getpass
 import logging
 from optparse import OptionParser
 import os
-try:
-    from sqlite3 import dbapi2 as sqlite
-except ImportError:
-    from pysqlite2 import dbapi2 as sqlite
 from subprocess import Popen, CalledProcessError, PIPE
 import sys
 
@@ -23,12 +20,12 @@ LOGLEVEL_DEFAULT = 'warn'
 log = logging.getLogger()
 PWDECRYPT = 'pwdecrypt'
 
-SITEFIELDS = ['id', 'hostname', 'httpRealm', 'formSubmitURL', 'usernameField', 'passwordField', 'encryptedUsername', 'encryptedPassword', 'guid', 'encType', 'plain_username', 'plain_password' ]
+SITEFIELDS = ['id', 'hostname', 'httpRealm', 'formSubmitURL', 'usernameField',
+'passwordField', 'encryptedUsername', 'encryptedPassword', 'guid', 'encType',
+'plain_username', 'plain_password',
+'timePasswordChanged', 'timeCreated',
+'timesUsed', 'timeLastUsed' ]
 Site = namedtuple('FirefoxSite', SITEFIELDS)
-'''The format of the SQLite database is:
-(id                 INTEGER PRIMARY KEY,hostname           TEXT NOT NULL,httpRealm          TEXT,formSubmitURL      TEXT,usernameField      TEXT NOT NULL,passwordField      TEXT NOT NULL,encryptedUsername  TEXT NOT NULL,encryptedPassword  TEXT NOT NULL,guid               TEXT,encType            INTEGER);
-'''
-
 
 
 #### These are libnss definitions ####
@@ -70,34 +67,20 @@ def get_default_firefox_profile_directory(dir='~/.mozilla/firefox'):
     
 
 def get_encrypted_sites(firefox_profile_dir=None):
-    'Opens signons.sqlite and yields encryped password data'
+    'Opens logins.json and yields encryped password data'
     
     if firefox_profile_dir is None:
         firefox_profile_dir = get_default_firefox_profile_directory()
-    password_sqlite = os.path.join(firefox_profile_dir, "signons.sqlite")
-    query = '''SELECT id, hostname, httpRealm, formSubmitURL,
-                      usernameField, passwordField, encryptedUsername,
-                      encryptedPassword, guid, encType, 'noplainuser', 'noplainpasswd' FROM moz_logins;'''
 
-    # We don't want to type out all the column from the DB as we have 
-    ## stored them in the SITEFIELDS already. However, we have two 
-    ## components extra, the plain usename and password. So we remove 
-    ## that from the list, because the table doesn't have that column. 
-    ## And we add two literal SQL strings to make our "Site" data 
-    ## structure happy
-    #queryfields = SITEFIELDS[:-2] + ["'noplainuser'", "'noplainpassword'"]
-    #query = '''SELECT %s 
-    #           FROM moz_logins;''' % ', '.join(queryfields)
+    logins_json = os.path.join(firefox_profile_dir, "logins.json")
+    with open(logins_json) as fobj:
+        logins_data = json.load(fobj)
 
-    connection = sqlite.connect(password_sqlite)
-    try:
-        cursor = connection.cursor()
-        cursor.execute(query)
+    for login_dict in logins_data['logins']:
+        login_dict = {key: login_dict.get(key) for key in login_dict}
+        login_dict.update(plain_username=None, plain_password=None)
+        yield Site(**login_dict)
 
-        for site in map(Site._make, cursor.fetchall()):
-          yield site
-    finally:
-        connection.close()
 
 def decrypt(encrypted_string, firefox_profile_directory, password = None):
     '''Opens an external tool to decrypt strings
