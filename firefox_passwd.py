@@ -5,7 +5,7 @@ import base64
 import json
 from collections import namedtuple
 from ConfigParser import RawConfigParser, NoOptionError
-from ctypes import (Structure, CDLL, byref, cast, string_at, c_void_p, 
+from ctypes import (Structure, CDLL, byref, cast, string_at, c_void_p,
     c_uint, c_ubyte, c_char_p)
 from getpass import getpass
 import logging
@@ -31,7 +31,7 @@ Site = namedtuple('FirefoxSite', SITEFIELDS)
 #### These are libnss definitions ####
 class SECItem(Structure):
 	_fields_ = [('type',c_uint),('data',c_void_p),('len',c_uint)]
-	
+
 class secuPWData(Structure):
 	_fields_ = [('source',c_ubyte),('data',c_char_p)]
 
@@ -43,7 +43,7 @@ class secuPWData(Structure):
 
 def get_default_firefox_profile_directory(dir='~/.mozilla/firefox'):
     '''Returns the directory name of the default profile
-    
+
     If you changed the default dir to something like ~/.thunderbird,
     you would get the Thunderbird default profile directory.'''
 
@@ -64,11 +64,11 @@ def get_default_firefox_profile_directory(dir='~/.mozilla/firefox'):
         raise RuntimeError("Cannot find default Firefox profile")
 
     return profile_path
-    
+
 
 def get_encrypted_sites(firefox_profile_dir=None):
     'Opens logins.json and yields encryped password data'
-    
+
     if firefox_profile_dir is None:
         firefox_profile_dir = get_default_firefox_profile_directory()
 
@@ -84,12 +84,12 @@ def get_encrypted_sites(firefox_profile_dir=None):
 
 def decrypt(encrypted_string, firefox_profile_directory, password = None):
     '''Opens an external tool to decrypt strings
-    
-    This is mostly for historical reasons or if the API changes. It is 
-    very slow because it needs to call out a lot. It uses the 
-    "pwdecrypt" tool which you might have packaged. Otherwise, you 
+
+    This is mostly for historical reasons or if the API changes. It is
+    very slow because it needs to call out a lot. It uses the
+    "pwdecrypt" tool which you might have packaged. Otherwise, you
     need to build it yourself.'''
-    
+
     log = logging.getLogger('firefoxpasswd.decrypt')
     execute = [PWDECRYPT, '-d', firefox_profile_directory]
     if password:
@@ -97,16 +97,16 @@ def decrypt(encrypted_string, firefox_profile_directory, password = None):
     process = Popen(execute,
                     stdin=PIPE, stdout=PIPE, stderr=PIPE)
     output, error = process.communicate(encrypted_string)
-    
+
     log.debug('Sent: %s', encrypted_string)
     log.debug('Got: %s', output)
-    
+
     NEEDLE = 'Decrypted: "' # This string is prepended to the decrypted password if found
     output = output.strip()
     if output == encrypted_string:
         log.error('Password was not correct. Please try again without a '
                    'password or with the correct one')
-    
+
     index = output.index(NEEDLE) + len(NEEDLE)
     password = output[index:-1] # And we strip the final quotation mark
 
@@ -117,13 +117,13 @@ class NativeDecryptor(object):
     'Calls the NSS API to decrypt strings'
 
     def __init__(self, directory, password = ''):
-        '''You need to give the profile directory and optionally a 
-        password. If you don't give a password but one is needed, you 
+        '''You need to give the profile directory and optionally a
+        password. If you don't give a password but one is needed, you
         will be prompted by getpass to provide one.'''
         self.directory = directory
         self.log = logging.getLogger('NativeDecryptor')
         self.log.debug('Trying to work on %s', directory)
-        
+
         self.libnss = CDLL('libnss3.so')
         if self.libnss.NSS_Init(directory) != 0:
             self.log.error('Could not initialize NSS')
@@ -131,10 +131,10 @@ class NativeDecryptor(object):
         # Initialize to the empty string, not None, because the password
         # function expects rather an empty string
         self.password = password = password or ''
-        
+
 
         slot = self.libnss.PK11_GetInternalKeySlot()
-        
+
         pw_good = self.libnss.PK11_CheckUserPassword(slot, c_char_p(password))
         while pw_good != SECSuccess:
             msg = 'Password is not good (%d)!' % pw_good
@@ -143,7 +143,7 @@ class NativeDecryptor(object):
             pw_good = self.libnss.PK11_CheckUserPassword(slot, c_char_p(password))
             #raise RuntimeError(msg)
 
-        # That's it, we're done with passwords, but we leave the old 
+        # That's it, we're done with passwords, but we leave the old
         # code below in, for nostalgic reasons.
 
         if password is None:
@@ -154,10 +154,10 @@ class NativeDecryptor(object):
             # It's not clear whether this actually works
             pwdata = secuPWData()
             pwdata.source = PW_PLAINTEXT
-            pwdata.data = c_char_p (password) 
+            pwdata.data = c_char_p (password)
             # It doesn't actually work :-(
 
-            
+
             # Now follow some attempts that were not succesful!
             def setpwfunc():
                 # One attempt was to use PK11PassworFunc. Didn't work.
@@ -165,26 +165,26 @@ class NativeDecryptor(object):
                     #s = self.libnss.PL_strdup(password)
                     s = self.libnss.PL_strdup("foo")
                     return s
-        
+
                 PK11PasswordFunc = CFUNCTYPE(c_void_p, PRBool, c_void_p)
                 c_password_cb = PK11PasswordFunc(password_cb)
                 #self.libnss.PK11_SetPasswordFunc(c_password_cb)
-                
+
 
             # To be ignored
-            def changepw():                
+            def changepw():
                 # Another attempt was to use ChangePW. Again, no effect.
                 #ret = self.libnss.PK11_ChangePW(slot, pwdata.data, 0);
                 ret = self.libnss.PK11_ChangePW(slot, password, 0)
                 if ret == SECFailure:
                     raise RuntimeError('Setting password failed! %s' % ret)
-        
+
         #self.pwdata = pwdata
-    
+
 
     def __del__(self):
         self.libnss.NSS_Shutdown()
-    
+
 
     def decrypt(self, string, *args):
         'Decrypts a given string'
@@ -192,9 +192,9 @@ class NativeDecryptor(object):
         libnss =  self.libnss
 
         uname = SECItem()
-        dectext = SECItem()        
+        dectext = SECItem()
         #pwdata = self.pwdata
-        
+
         cstring = SECItem()
         cstring.data  = cast( c_char_p( base64.b64decode(string)), c_void_p)
         cstring.len = len(base64.b64decode(string))
@@ -205,12 +205,12 @@ class NativeDecryptor(object):
             libnss.PR_ErrorToString.restype = c_char_p
             error_str = libnss.PR_ErrorToString(error)
             raise Exception ("%d: %s" % (error, error_str))
-	        
+
         decrypted_data = string_at(dectext.data, dectext.len)
-	    
+
     	return decrypted_data
-	
-	
+
+
     def encrypted_sites(self):
         'Yields the encryped passwords from the profile'
         sites = get_encrypted_sites(self.directory)
@@ -222,13 +222,13 @@ class NativeDecryptor(object):
         'Decrypts the encrypted_sites and yields the results'
 
         sites = self.encrypted_sites()
-        
+
         for site in sites:
             plain_user = self.decrypt(site.encryptedUsername)
             plain_password = self.decrypt(site.encryptedPassword)
             site = site._replace(plain_username=plain_user,
                 plain_password=plain_password)
-            
+
             yield site
 
 
@@ -255,10 +255,10 @@ def main_decryptor(firefox_profile_directory, password, thunderbird=False):
         firefox_profile_directory = get_default_firefox_profile_directory(dir)
 
     decryptor = NativeDecryptor(firefox_profile_directory, password)
-    
+
     for site in decryptor.decrypted_sites():
         print site
-    
+
 if __name__ == "__main__":
     parser = OptionParser()
     parser.add_option("-d", "--directory", default=None,
@@ -282,13 +282,13 @@ if __name__ == "__main__":
                     "You need to use this method if you have a password "
                     "protected database though.")
     options, args = parser.parse_args()
-    
+
     loglevel = {'debug': logging.DEBUG, 'info': logging.INFO,
                 'warn': logging.WARN, 'critical':logging.CRITICAL,
                 'error': logging.ERROR}.get(options.loglevel, LOGLEVEL_DEFAULT)
     logging.basicConfig(level=loglevel)
     log = logging.getLogger()
-    
+
     password = options.password
 
     if not options.external:
