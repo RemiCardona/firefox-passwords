@@ -30,10 +30,10 @@ Site = namedtuple('FirefoxSite', SITEFIELDS)
 
 #### These are libnss definitions ####
 class SECItem(Structure):
-	_fields_ = [('type',c_uint),('data',c_void_p),('len',c_uint)]
+    _fields_ = [('type',c_uint),('data',c_void_p),('len',c_uint)]
 
 class secuPWData(Structure):
-	_fields_ = [('source',c_ubyte),('data',c_char_p)]
+    _fields_ = [('source',c_ubyte),('data',c_char_p)]
 
 (PW_NONE, PW_FROMFILE, PW_PLAINTEXT, PW_EXTERNAL) = (0, 1, 2, 3)
 # SECStatus
@@ -208,7 +208,7 @@ class NativeDecryptor(object):
 
         decrypted_data = string_at(dectext.data, dectext.len)
 
-    	return decrypted_data
+        return decrypted_data
 
 
     def encrypted_sites(self):
