@@ -24,16 +24,16 @@ SITEFIELDS = ['id', 'hostname', 'httpRealm', 'formSubmitURL', 'usernameField',
 'passwordField', 'encryptedUsername', 'encryptedPassword', 'guid', 'encType',
 'plain_username', 'plain_password',
 'timePasswordChanged', 'timeCreated',
-'timesUsed', 'timeLastUsed' ]
+'timesUsed', 'timeLastUsed']
 Site = namedtuple('FirefoxSite', SITEFIELDS)
 
 
 #### These are libnss definitions ####
 class SECItem(Structure):
-    _fields_ = [('type',c_uint),('data',c_void_p),('len',c_uint)]
+    _fields_ = [('type', c_uint), ('data', c_void_p), ('len', c_uint)]
 
 class secuPWData(Structure):
-    _fields_ = [('source',c_ubyte),('data',c_char_p)]
+    _fields_ = [('source', c_ubyte), ('data', c_char_p)]
 
 (PW_NONE, PW_FROMFILE, PW_PLAINTEXT, PW_EXTERNAL) = (0, 1, 2, 3)
 # SECStatus
@@ -82,7 +82,7 @@ def get_encrypted_sites(firefox_profile_dir=None):
         yield Site(**login_dict)
 
 
-def decrypt(encrypted_string, firefox_profile_directory, password = None):
+def decrypt(encrypted_string, firefox_profile_directory, password=None):
     '''Opens an external tool to decrypt strings
 
     This is mostly for historical reasons or if the API changes. It is
@@ -116,7 +116,7 @@ def decrypt(encrypted_string, firefox_profile_directory, password = None):
 class NativeDecryptor(object):
     'Calls the NSS API to decrypt strings'
 
-    def __init__(self, directory, password = ''):
+    def __init__(self, directory, password=''):
         '''You need to give the profile directory and optionally a
         password. If you don't give a password but one is needed, you
         will be prompted by getpass to provide one.'''
@@ -154,7 +154,7 @@ class NativeDecryptor(object):
             # It's not clear whether this actually works
             pwdata = secuPWData()
             pwdata.source = PW_PLAINTEXT
-            pwdata.data = c_char_p (password)
+            pwdata.data = c_char_p(password)
             # It doesn't actually work :-(
 
 
@@ -189,22 +189,22 @@ class NativeDecryptor(object):
     def decrypt(self, string, *args):
         'Decrypts a given string'
 
-        libnss =  self.libnss
+        libnss = self.libnss
 
         uname = SECItem()
         dectext = SECItem()
         #pwdata = self.pwdata
 
         cstring = SECItem()
-        cstring.data  = cast( c_char_p( base64.b64decode(string)), c_void_p)
+        cstring.data = cast(c_char_p(base64.b64decode(string)), c_void_p)
         cstring.len = len(base64.b64decode(string))
         #if libnss.PK11SDR_Decrypt (byref (cstring), byref (dectext), byref (pwdata)) == -1:
         self.log.debug('Trying to decrypt %s (error: %s)', string, libnss.PORT_GetError())
-        if libnss.PK11SDR_Decrypt (byref (cstring), byref (dectext)) == -1:
+        if libnss.PK11SDR_Decrypt(byref(cstring), byref(dectext)) == -1:
             error = libnss.PORT_GetError()
             libnss.PR_ErrorToString.restype = c_char_p
             error_str = libnss.PR_ErrorToString(error)
-            raise Exception ("%d: %s" % (error, error_str))
+            raise Exception("%d: %s" % (error, error_str))
 
         decrypted_data = string_at(dectext.data, dectext.len)
 
@@ -232,7 +232,7 @@ class NativeDecryptor(object):
             yield site
 
 
-def get_firefox_sites_with_decrypted_passwords(firefox_profile_directory = None, password = None):
+def get_firefox_sites_with_decrypted_passwords(firefox_profile_directory=None, password=None):
     'Old school decryption of passwords using the external tool'
     if not firefox_profile_directory:
         firefox_profile_directory = get_default_firefox_profile_directory()
@@ -292,7 +292,7 @@ if __name__ == "__main__":
     password = options.password
 
     if not options.external:
-        sys.exit (main_decryptor(options.directory, password, thunderbird=options.thunderbird))
+        sys.exit(main_decryptor(options.directory, password, thunderbird=options.thunderbird))
     else:
         for site in get_firefox_sites_with_decrypted_passwords(options.directory, password):
             print site
