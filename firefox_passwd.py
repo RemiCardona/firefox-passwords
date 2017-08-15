@@ -4,14 +4,14 @@
 import base64
 import json
 from collections import namedtuple
-from ConfigParser import RawConfigParser, NoOptionError
+from ConfigParser import RawConfigParser
 from ctypes import (Structure, CDLL, byref, cast, string_at, c_void_p,
     c_uint, c_ubyte, c_char_p)
 from getpass import getpass
 import logging
 from optparse import OptionParser
 import os
-from subprocess import Popen, CalledProcessError, PIPE
+from subprocess import Popen, PIPE
 import sys
 
 
