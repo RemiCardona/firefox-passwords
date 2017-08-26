@@ -40,7 +40,7 @@ class secuPWData(Structure):
 #### End of libnss definitions ####
 
 
-def get_default_firefox_profile_directory(dir='~/.mozilla/firefox'):
+def get_default_firefox_profile_directory(dir):
     '''Returns the directory name of the default profile
 
     If you changed the default dir to something like ~/.thunderbird,
@@ -65,11 +65,8 @@ def get_default_firefox_profile_directory(dir='~/.mozilla/firefox'):
     return profile_path
 
 
-def get_encrypted_sites(firefox_profile_dir=None):
+def get_encrypted_sites(firefox_profile_dir):
     'Opens logins.json and yields encryped password data'
-
-    if firefox_profile_dir is None:
-        firefox_profile_dir = get_default_firefox_profile_directory()
 
     logins_json = os.path.join(firefox_profile_dir, "logins.json")
     with open(logins_json) as fobj:
