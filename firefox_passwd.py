@@ -40,13 +40,12 @@ class secuPWData(Structure):
 #### End of libnss definitions ####
 
 
-def get_default_firefox_profile_directory(dir):
+def get_default_firefox_profile_directory(profiles_dir):
     '''Returns the directory name of the default profile
 
     If you changed the default dir to something like ~/.thunderbird,
     you would get the Thunderbird default profile directory.'''
 
-    profiles_dir = os.path.expanduser(dir)
     profile_path = None
 
     cp = RawConfigParser()
@@ -197,19 +196,22 @@ class NativeDecryptor(object):
             yield site
 
 
-def main_decryptor(firefox_profile_directory, password, thunderbird=False):
+def main_decryptor(profile_directory, password, thunderbird=False):
     'Main function to get Firefox and Thunderbird passwords'
-    if not firefox_profile_directory:
+    if not profile_directory:
         if thunderbird:
-            dir = '~/.thunderbird/'
+            default_profiles_dir = os.path.expanduser('~/.thunderbird/')
         else:
-            dir = '~/.mozilla/firefox'
-        firefox_profile_directory = get_default_firefox_profile_directory(dir)
+            default_profiles_dir = os.path.expanduser('~/.mozilla/firefox')
+        profile_directory = get_default_firefox_profile_directory(default_profiles_dir)
+    else:
+        profile_directory = os.path.expanduser(profile_directory)
 
-    decryptor = NativeDecryptor(firefox_profile_directory, password)
+    decryptor = NativeDecryptor(profile_directory, password)
 
     for site in decryptor.decrypted_sites():
         print site
+
 
 if __name__ == "__main__":
     parser = OptionParser()
