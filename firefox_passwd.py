@@ -11,7 +11,6 @@ from getpass import getpass
 import logging
 from optparse import OptionParser
 import os
-from subprocess import Popen, PIPE
 import sys
 
 
@@ -80,37 +79,6 @@ def get_encrypted_sites(firefox_profile_dir=None):
         login_dict = {key: login_dict.get(key) for key in login_dict}
         login_dict.update(plain_username=None, plain_password=None)
         yield Site(**login_dict)
-
-
-def decrypt(encrypted_string, firefox_profile_directory, password=None):
-    '''Opens an external tool to decrypt strings
-
-    This is mostly for historical reasons or if the API changes. It is
-    very slow because it needs to call out a lot. It uses the
-    "pwdecrypt" tool which you might have packaged. Otherwise, you
-    need to build it yourself.'''
-
-    log = logging.getLogger('firefoxpasswd.decrypt')
-    execute = [PWDECRYPT, '-d', firefox_profile_directory]
-    if password:
-        execute.extend(['-p', password])
-    process = Popen(execute,
-                    stdin=PIPE, stdout=PIPE, stderr=PIPE)
-    output, error = process.communicate(encrypted_string)
-
-    log.debug('Sent: %s', encrypted_string)
-    log.debug('Got: %s', output)
-
-    NEEDLE = 'Decrypted: "' # This string is prepended to the decrypted password if found
-    output = output.strip()
-    if output == encrypted_string:
-        log.error('Password was not correct. Please try again without a '
-                   'password or with the correct one')
-
-    index = output.index(NEEDLE) + len(NEEDLE)
-    password = output[index:-1] # And we strip the final quotation mark
-
-    return password
 
 
 class NativeDecryptor(object):
@@ -232,19 +200,6 @@ class NativeDecryptor(object):
             yield site
 
 
-def get_firefox_sites_with_decrypted_passwords(firefox_profile_directory=None, password=None):
-    'Old school decryption of passwords using the external tool'
-    if not firefox_profile_directory:
-        firefox_profile_directory = get_default_firefox_profile_directory()
-    #decrypt = NativeDecryptor(firefox_profile_directory).decrypt
-    for site in get_encrypted_sites(firefox_profile_directory):
-        plain_user = decrypt(site.encryptedUsername, firefox_profile_directory, password)
-        plain_password = decrypt(site.encryptedPassword, firefox_profile_directory, password)
-        site = site._replace(plain_username=plain_user, plain_password=plain_password)
-        log.debug("Dealing with Site: %r", site)
-        log.info("user: %s, passwd: %s", plain_user, plain_password)
-        yield site
-
 def main_decryptor(firefox_profile_directory, password, thunderbird=False):
     'Main function to get Firefox and Thunderbird passwords'
     if not firefox_profile_directory:
@@ -271,16 +226,6 @@ if __name__ == "__main__":
                   help="by default we try to find the Firefox default profile."
                   " But you can as well ask for Thunderbird's default profile."
                   " For a more reliable way, give the directory with -d.")
-    parser.add_option("-n", "--native", default=True, action='store_true',
-                  help="use the native decryptor, i.e. make Python use "
-                  "libnss directly instead of invoking the helper program"
-                  "DEFUNCT! this option will not be checked.")
-    parser.add_option("-e", "--external", default=False, action='store_true',
-                  help="use an external program `pwdecrypt' to actually "
-                    "decrypt the passwords. This calls out a lot and is dead "
-                    "slow. "
-                    "You need to use this method if you have a password "
-                    "protected database though.")
     options, args = parser.parse_args()
 
     loglevel = {'debug': logging.DEBUG, 'info': logging.INFO,
@@ -291,8 +236,4 @@ if __name__ == "__main__":
 
     password = options.password
 
-    if not options.external:
-        sys.exit(main_decryptor(options.directory, password, thunderbird=options.thunderbird))
-    else:
-        for site in get_firefox_sites_with_decrypted_passwords(options.directory, password):
-            print site
+    sys.exit(main_decryptor(options.directory, password, thunderbird=options.thunderbird))
