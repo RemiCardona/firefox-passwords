@@ -94,8 +94,7 @@ class NativeDecryptor(object):
 
         # Initialize to the empty string, not None, because the password
         # function expects rather an empty string
-        self.password = password = password or ''
-
+        password = password or ''
 
         slot = self.libnss.PK11_GetInternalKeySlot()
 
@@ -105,64 +104,20 @@ class NativeDecryptor(object):
             print >>sys.stderr, msg
             password = getpass('Please enter password: ')
             pw_good = self.libnss.PK11_CheckUserPassword(slot, c_char_p(password))
-            #raise RuntimeError(msg)
-
-        # That's it, we're done with passwords, but we leave the old
-        # code below in, for nostalgic reasons.
-
-        if password is None:
-            pwdata = secuPWData()
-            pwdata.source = PW_NONE
-            pwdata.data = 0
-        else:
-            # It's not clear whether this actually works
-            pwdata = secuPWData()
-            pwdata.source = PW_PLAINTEXT
-            pwdata.data = c_char_p(password)
-            # It doesn't actually work :-(
-
-
-            # Now follow some attempts that were not succesful!
-            def setpwfunc():
-                # One attempt was to use PK11PassworFunc. Didn't work.
-                def password_cb(slot, retry, arg):
-                    #s = self.libnss.PL_strdup(password)
-                    s = self.libnss.PL_strdup("foo")
-                    return s
-
-                PK11PasswordFunc = CFUNCTYPE(c_void_p, PRBool, c_void_p)
-                c_password_cb = PK11PasswordFunc(password_cb)
-                #self.libnss.PK11_SetPasswordFunc(c_password_cb)
-
-
-            # To be ignored
-            def changepw():
-                # Another attempt was to use ChangePW. Again, no effect.
-                #ret = self.libnss.PK11_ChangePW(slot, pwdata.data, 0);
-                ret = self.libnss.PK11_ChangePW(slot, password, 0)
-                if ret == SECFailure:
-                    raise RuntimeError('Setting password failed! %s' % ret)
-
-        #self.pwdata = pwdata
-
 
     def __del__(self):
         self.libnss.NSS_Shutdown()
 
-
-    def decrypt(self, string, *args):
+    def decrypt(self, string):
         'Decrypts a given string'
 
         libnss = self.libnss
 
-        uname = SECItem()
         dectext = SECItem()
-        #pwdata = self.pwdata
 
         cstring = SECItem()
         cstring.data = cast(c_char_p(base64.b64decode(string)), c_void_p)
         cstring.len = len(base64.b64decode(string))
-        #if libnss.PK11SDR_Decrypt (byref (cstring), byref (dectext), byref (pwdata)) == -1:
         self.log.debug('Trying to decrypt %s (error: %s)', string, libnss.PORT_GetError())
         if libnss.PK11SDR_Decrypt(byref(cstring), byref(dectext)) == -1:
             error = libnss.PORT_GetError()
@@ -174,13 +129,11 @@ class NativeDecryptor(object):
 
         return decrypted_data
 
-
     def encrypted_sites(self):
         'Yields the encryped passwords from the profile'
         sites = get_encrypted_sites(self.directory)
 
         return sites
-
 
     def decrypted_sites(self):
         'Decrypts the encrypted_sites and yields the results'
